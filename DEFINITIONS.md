@@ -43,10 +43,10 @@ Das Modul holt selbständig Informationen zu Sendungen aus der DHL Paket API. "S
 | do_tracking | bool | (wird vom Code gesetzt, default 'true') | | | legt fest, ob der Status der Sendung beim nächsten Aufruf aktualisiert werden soll |
 
 Die DHL Paket API erwartet verschiedene Parameter:
-- 'dhl-api-key'
-- 'dhl-api-secret'
-- 'username'
-- 'password'
+- 'dhl-api-key': API-Key
+- 'dhl-api-secret': API-Secret
+- 'username': Benutzername (Geschäftskundenportal)
+- 'password' Passwort (Geschäftskundenportal)
 
 Diese sollen auf der Einstellungs-Seite eingegeben werden können und sind obligatorisch. Sind sie nicht gesetzt, soll das Modul keine Aufrufe an die DHL Paket API ausführen.
 
