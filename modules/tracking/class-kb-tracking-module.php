@@ -13,7 +13,8 @@ require_once __DIR__ . '/class-kb-tracking-data.php';
 
 class KB_Tracking_Module {
 
-    const CRON_HOOK = 'kb_track_shipments';
+    const CRON_HOOK     = 'kb_track_shipments';
+    const NOTICE_OPTION = 'kb_tracking_admin_notice';
 
     public function __construct() {
         add_filter( 'woocommerce_data_stores', array( $this, 'register_data_store' ) );
@@ -22,6 +23,8 @@ class KB_Tracking_Module {
 
         // Platzhalter für Shiptastic Event.
         add_action( 'shiptastic_shipment_status_ready-for-shipping', array( $this, 'maybe_create_tracking' ) );
+
+        add_action( 'admin_notices', array( $this, 'show_admin_notice' ) );
     }
 
     /**
@@ -181,6 +184,7 @@ class KB_Tracking_Module {
     public function run_tracking() {
         $ids = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
         if ( empty( $ids ) ) {
+            delete_option( self::NOTICE_OPTION );
             return;
         }
 
@@ -189,6 +193,7 @@ class KB_Tracking_Module {
         $username   = get_option( 'kb_tracking_dhl_username' );
         $password   = get_option( 'kb_tracking_dhl_password' );
         if ( ! $api_key || ! $api_secret || ! $username || ! $password ) {
+            update_option( self::NOTICE_OPTION, __( 'Sendungsverfolgung konnte nicht aktualisiert werden. Bitte Zugangsdaten hinterlegen.', 'kb' ) );
             return;
         }
 
@@ -196,6 +201,7 @@ class KB_Tracking_Module {
         $log_args = array( 'source' => 'kb-tracking' );
         $debug    = 'debug' === get_option( 'kb_tracking_log_level', 'error' );
 
+        $notice = '';
         $chunks = array_chunk( $ids, 15 );
         foreach ( $chunks as $chunk ) {
             $piece_codes = implode( ';', array_map( 'sanitize_text_field', $chunk ) );
@@ -221,6 +227,7 @@ class KB_Tracking_Module {
 
             if ( is_wp_error( $response ) ) {
                 $logger->error( 'DHL API Fehler: ' . $response->get_error_message(), $log_args );
+                $notice = sprintf( __( 'Fehler beim Abrufen der DHL API: %s', 'kb' ), $response->get_error_message() );
                 continue;
             }
 
@@ -229,6 +236,7 @@ class KB_Tracking_Module {
 
             if ( ! $xml ) {
                 $logger->error( 'Ungültige Antwort von der DHL API', $log_args );
+                $notice = __( 'Ungültige Antwort von der DHL API.', 'kb' );
                 continue;
             }
 
@@ -269,12 +277,37 @@ class KB_Tracking_Module {
                 }
             }
         }
+
+        if ( $notice ) {
+            update_option( self::NOTICE_OPTION, $notice );
+        } else {
+            delete_option( self::NOTICE_OPTION );
+        }
+    }
+
+    /**
+     * Zeigt Fehlerhinweise im Adminbereich.
+     */
+    public function show_admin_notice() {
+        $notice = get_option( self::NOTICE_OPTION );
+        if ( ! $notice ) {
+            return;
+        }
+        $url = admin_url( 'admin.php?page=wc-settings&tab=kb_adapter' );
+        echo '<div class="notice notice-error"><p>' . esc_html( $notice ) . ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'Einstellungen', 'kb' ) . '</a></p></div>';
     }
 
     /**
      * Admin Seite für Tracking Objekte.
      */
     public function render_admin_page() {
+        echo '<div class="wrap"><h1>' . esc_html__( 'Sendungsverfolgung', 'kb' ) . '</h1>';
+
+        if ( isset( $_POST['kb_tracking_refresh'] ) && check_admin_referer( 'kb_tracking_refresh', '_kb_tracking_nonce' ) ) {
+            $this->run_tracking();
+            echo '<div class="notice notice-success"><p>' . esc_html__( 'Sendungsverfolgung aktualisiert.', 'kb' ) . '</p></div>';
+        }
+
         $ids   = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
         $items = array();
         foreach ( $ids as $id ) {
@@ -288,7 +321,11 @@ class KB_Tracking_Module {
             }
         );
 
-        echo '<div class="wrap"><h1>' . esc_html__( 'Sendungsverfolgung', 'kb' ) . '</h1>';
+        echo '<form method="post">';
+        wp_nonce_field( 'kb_tracking_refresh', '_kb_tracking_nonce' );
+        echo '<p><input type="submit" name="kb_tracking_refresh" class="button button-secondary" value="' . esc_attr__( 'Jetzt aktualisieren', 'kb' ) . '" /></p>';
+        echo '</form>';
+
         echo '<table class="widefat"><thead><tr>';
         echo '<th>' . esc_html__( 'Zeitstempel', 'kb' ) . '</th>';
         echo '<th>' . esc_html__( 'Tracking-ID', 'kb' ) . '</th>';
