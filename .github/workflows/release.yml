@@ -48,13 +48,20 @@ jobs:
           git tag "v$new_version"
           git push origin HEAD:main
           git push origin "v$new_version"
+      - name: Build plugin zip
+        id: package
+        run: |
+          zip_name="woocommerce-kingbear-adapter-${{ steps.bump.outputs.new_version }}.zip"
+          git archive HEAD --format=zip --prefix=woocommerce-kingbear-adapter/ -o "$zip_name"
+          echo "zip_name=$zip_name" >> $GITHUB_OUTPUT
 
       - name: Create GitHub release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.bump.outputs.new_version }}
-          release_name: v${{ steps.bump.outputs.new_version }}
+          name: v${{ steps.bump.outputs.new_version }}
           body: |
             Automated release of version ${{ steps.bump.outputs.new_version }}.
+          files: ${{ steps.package.outputs.zip_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
