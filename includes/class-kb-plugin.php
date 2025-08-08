@@ -41,7 +41,8 @@ class KB_Plugin {
     }
 
     private function __construct() {
-        add_action( 'plugins_loaded', array( $this, 'init' ) );
+        add_action( 'woocommerce_loaded', array( $this, 'init' ) );
+        add_action( 'admin_notices', array( $this, 'admin_notice_missing_wc' ) );
     }
 
     /**
@@ -98,6 +99,9 @@ class KB_Plugin {
      * Plugin Aktivierung.
      */
     public static function activate() {
+        if ( ! class_exists( 'WooCommerce' ) ) {
+            return;
+        }
         require_once __DIR__ . '/../modules/tracking/class-kb-tracking-module.php';
         KB_Tracking_Module::schedule_cron();
         KB_Tracking_Module::create_tracking_for_existing_shipments();
@@ -107,10 +111,23 @@ class KB_Plugin {
      * Plugin Deaktivierung.
      */
     public static function deactivate() {
+        if ( ! class_exists( 'WooCommerce' ) ) {
+            return;
+        }
         require_once __DIR__ . '/../modules/tracking/class-kb-tracking-module.php';
         if ( 'yes' === get_option( 'kb_tracking_delete_data', 'no' ) ) {
             KB_Tracking_Module::delete_all_tracking();
         }
         KB_Tracking_Module::clear_cron();
+    }
+
+    /**
+     * Zeigt einen Hinweis im Admin, wenn WooCommerce nicht aktiv ist.
+     */
+    public function admin_notice_missing_wc() {
+        if ( class_exists( 'WooCommerce' ) || ! current_user_can( 'activate_plugins' ) ) {
+            return;
+        }
+        echo '<div class="notice notice-error"><p>' . esc_html__( 'WooCommerce KingBear Adapter erfordert ein aktiviertes WooCommerce.', 'kb' ) . '</p></div>';
     }
 }
