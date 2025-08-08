@@ -52,6 +52,22 @@ class KB_Tracking_Data_Store implements WC_Object_Data_Store_Interface {
         $this->remove_id_from_index( $id );
     }
 
+    public function read_meta( &$tracking ) {
+        return array();
+    }
+
+    public function delete_meta( &$tracking, $meta ) {
+        return array();
+    }
+
+    public function add_meta( &$tracking, $meta ) {
+        return 0;
+    }
+
+    public function update_meta( &$tracking, $meta ) {
+        // Kein Meta-Support notwendig.
+    }
+
     protected function get_option_key( $id ) {
         return 'kb_tracking_' . $id;
     }
