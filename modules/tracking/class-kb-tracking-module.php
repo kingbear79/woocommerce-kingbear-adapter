@@ -66,6 +66,13 @@ class KB_Tracking_Module {
                 ),
                 'default' => 'error',
             ),
+            array(
+                'title'   => __( 'Tracking-Daten bei Deaktivierung entfernen', 'kb' ),
+                'id'      => 'kb_tracking_delete_data',
+                'type'    => 'checkbox',
+                'desc'    => __( 'Entfernt alle gespeicherten Tracking-Daten beim Deaktivieren des Plugins.', 'kb' ),
+                'default' => 'no',
+            ),
         );
     }
 
@@ -86,6 +93,48 @@ class KB_Tracking_Module {
         if ( $timestamp ) {
             wp_unschedule_event( $timestamp, self::CRON_HOOK );
         }
+    }
+
+    /**
+     * Erstellt Tracking-Objekte für vorhandene Shipments.
+     */
+    public static function create_tracking_for_existing_shipments() {
+        // Suche nach Shipments mit dem Status "ready-for-shipping".
+        $posts = get_posts(
+            array(
+                'post_type'      => 'shiptastic_shipment',
+                'post_status'    => 'ready-for-shipping',
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+            )
+        );
+
+        if ( empty( $posts ) ) {
+            return;
+        }
+
+        $module = new self();
+        foreach ( $posts as $shipment_id ) {
+            $shipment = (object) array(
+                'id'          => $shipment_id,
+                'tracking_id' => get_post_meta( $shipment_id, '_tracking_id', true ),
+            );
+            $module->maybe_create_tracking( $shipment );
+        }
+    }
+
+    /**
+     * Entfernt alle gespeicherten Tracking-Objekte.
+     */
+    public static function delete_all_tracking() {
+        $ids = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
+        if ( empty( $ids ) ) {
+            return;
+        }
+        foreach ( $ids as $id ) {
+            delete_option( 'kb_tracking_' . $id );
+        }
+        delete_option( KB_Tracking_Data_Store::IDS_OPTION );
     }
 
     /**
