@@ -98,13 +98,19 @@ class KB_Plugin {
      * Plugin Aktivierung.
      */
     public static function activate() {
+        require_once __DIR__ . '/../modules/tracking/class-kb-tracking-module.php';
         KB_Tracking_Module::schedule_cron();
+        KB_Tracking_Module::create_tracking_for_existing_shipments();
     }
 
     /**
      * Plugin Deaktivierung.
      */
     public static function deactivate() {
+        require_once __DIR__ . '/../modules/tracking/class-kb-tracking-module.php';
+        if ( 'yes' === get_option( 'kb_tracking_delete_data', 'no' ) ) {
+            KB_Tracking_Module::delete_all_tracking();
+        }
         KB_Tracking_Module::clear_cron();
     }
 }
