@@ -52,7 +52,6 @@ class KB_Plugin {
             return; // Stoppe wenn WooCommerce nicht verfügbar ist.
         }
 
-        require_once __DIR__ . '/class-kb-settings-page.php';
         $this->load_modules();
 
         add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
@@ -74,6 +73,7 @@ class KB_Plugin {
      * @return array
      */
     public function register_settings_page( $pages ) {
+        require_once __DIR__ . '/class-kb-settings-page.php';
         $pages[] = new KB_Settings_Page( $this->modules );
         return $pages;
     }
