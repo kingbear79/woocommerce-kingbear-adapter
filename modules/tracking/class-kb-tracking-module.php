@@ -248,14 +248,17 @@ class KB_Tracking_Module {
         echo '</tr></thead><tbody>';
 
         foreach ( $items as $item ) {
-            $raw       = $item->get_raw_data();
-            $recipient = array();
-            foreach ( $raw as $key => $value ) {
-                if ( 0 === strpos( $key, 'pan-recipient' ) ) {
-                    $recipient[] = $value;
-                }
-            }
-            $recipient = implode( ', ', array_filter( $recipient ) );
+            $raw = $item->get_raw_data();
+
+            $recipient = implode(
+                ', ',
+                array_filter(
+                    array(
+                        isset( $raw['pan-recipient-name'] ) ? $raw['pan-recipient-name'] : '',
+                        isset( $raw['pan-recipient-address'] ) ? $raw['pan-recipient-address'] : ''
+                    )
+                )
+            );
 
             echo '<tr>';
             echo '<td>' . esc_html( $item->get_status_timestamp() ) . '</td>';
