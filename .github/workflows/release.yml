@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current plugin version
+        id: get_version
+        run: |
+          version=$(grep -oP '^ \* Version: \K[0-9]+\.[0-9]+\.[0-9]+' woocommerce-kingbear-adapter.php)
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump
+        run: |
+          version=${{ steps.get_version.outputs.version }}
+          IFS='.' read -r major minor patch <<< "$version"
+          patch=$((patch + 1))
+          new_version="$major.$minor.$patch"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Update plugin file
+        run: |
+          new_version=${{ steps.bump.outputs.new_version }}
+          sed -i "s/^ \* Version: .*/ * Version: $new_version/" woocommerce-kingbear-adapter.php
+          sed -i "s#^ \* Update URI: .*# * Update URI: https://github.com/${{ github.repository }}#" woocommerce-kingbear-adapter.php
+
+      - name: Commit and tag
+        run: |
+          new_version=${{ steps.bump.outputs.new_version }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: release $new_version [skip release]"
+          git tag "v$new_version"
+          git push origin HEAD:main
+          git push origin "v$new_version"
+
+      - name: Create GitHub release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.bump.outputs.new_version }}
+          release_name: v${{ steps.bump.outputs.new_version }}
+          body: |
+            Automated release of version ${{ steps.bump.outputs.new_version }}.
