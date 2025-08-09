@@ -317,6 +317,7 @@ class KB_Tracking_Module {
                 if ( ! isset( $shipment['@attributes']['piece-code'] ) ) {
                     continue;
                 }
+
                 $piece    = $shipment['@attributes'];
                 $tracking = isset( $trackings[ $piece['piece-code'] ] ) ? $trackings[ $piece['piece-code'] ] : new KB_Tracking();
                 $tracking->set_tracking_id( $piece['piece-code'] );
@@ -325,9 +326,21 @@ class KB_Tracking_Module {
                 $tracking->set_delivered( isset( $piece['delivery-event-flag'] ) && '1' === (string) $piece['delivery-event-flag'] );
                 $tracking->set_is_return( isset( $piece['ruecksendung'] ) && 'true' === (string) $piece['ruecksendung'] );
                 $tracking->set_raw_data( $piece );
-                if ( isset( $shipment['data'] ) ) {
-                    $tracking->set_events( $shipment['data'] );
+
+                $events = array();
+                if ( isset( $shipment['data']['data'] ) ) {
+                    $event_items = $shipment['data']['data'];
+                    if ( isset( $event_items['@attributes'] ) ) {
+                        $event_items = array( $event_items );
+                    }
+                    foreach ( $event_items as $event ) {
+                        if ( isset( $event['@attributes'] ) ) {
+                            $events[] = $event['@attributes'];
+                        }
+                    }
                 }
+                $tracking->set_events( $events );
+
                 $tracking->save();
                 if ( $debug ) {
                     $logger->debug( 'Tracking aktualisiert: ' . $tracking->get_tracking_id(), $log_args );
