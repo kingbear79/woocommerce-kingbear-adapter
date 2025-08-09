@@ -14,6 +14,7 @@ Modul zur Synchronisation von Tracking-Informationen aus der DHL Paket API.
 **Funktionen**
 - Legt Tracking-Daten als `KB_Tracking` basierend auf `WC_Data` ab. Gespeicherte Felder: `shipment_id`, `tracking_id`, `status`, `status_timestamp`, `delivered`, `is_return`, `raw_data`, `events`, `do_tracking`.
 - Erstellt bei Shiptastic Shipments mit Status `ready-for-shipping` automatisch ein Tracking-Objekt.
+- Beim Aktualisieren werden alle Shiptastic Shipments mit Status `shipped` automatisch zur Tracking-Liste hinzugefügt.
 - Cron-Job (`kb_track_shipments`) läuft alle 30 Minuten und ruft die DHL Paket API (`request=d-get-piece-detail`) mit bis zu 15 Tracking-IDs pro Anfrage auf.
 - Aktualisiert Status, Zeitstempel, Ereignisse sowie Zustell- (`delivered`) und Rücksende-Flag (`is_return`) und speichert das komplette Antwort-Objekt (`raw_data`).
 - Admin-Seite unter `WooCommerce → Sendungsverfolgung` listet alle gespeicherten Sendungen mit Zeitstempel, Tracking-ID, Empfänger und Status; manuelle Aktualisierung per Button möglich.
