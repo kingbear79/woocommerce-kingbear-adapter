@@ -262,7 +262,7 @@ class KB_Tracking_Module {
         $chunks = array_chunk( array_keys( $trackings ), 15 );
         foreach ( $chunks as $chunk ) {
             $piece_codes = implode( ';', array_map( 'sanitize_text_field', $chunk ) );
-            $xml         = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?><data appname="' . esc_attr( $user ) . '" language-code="de" password="' . esc_attr( $pass ) . '" piece-code="' . esc_attr( $piece_codes ) . '" request="d-get-signature"/>';
+            $xml         = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?><data appname="' . esc_attr( $user ) . '" language-code="de" password="' . esc_attr( $pass ) . '" piece-code="' . esc_attr( $piece_codes ) . '" request="d-get-piece-detail"/>';
             $url         = add_query_arg( 'xml', $xml, 'https://api-eu.dhl.com/parcel/de/tracking/v0/shipments' );
 
             if ( $debug ) {
@@ -389,7 +389,10 @@ class KB_Tracking_Module {
         $ids   = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
         $items = array();
         foreach ( $ids as $id ) {
-            $items[] = new KB_Tracking( $id );
+            $tracking = new KB_Tracking( $id );
+            if ( $tracking->get_do_tracking() ) {
+                $items[] = $tracking;
+            }
         }
 
         usort(
