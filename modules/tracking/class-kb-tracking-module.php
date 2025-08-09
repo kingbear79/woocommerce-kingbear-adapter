@@ -213,6 +213,10 @@ class KB_Tracking_Module {
                 'https://api-eu.dhl.com/track/shipments'
             );
 
+            if ( $debug ) {
+                $logger->debug( 'DHL API request: ' . $url, $log_args );
+            }
+
             $response = wp_remote_get(
                 $url,
                 array(
@@ -226,13 +230,21 @@ class KB_Tracking_Module {
             );
 
             if ( is_wp_error( $response ) ) {
+                if ( $debug ) {
+                    $logger->debug( 'DHL API error response: ' . print_r( $response, true ), $log_args );
+                }
                 $logger->error( 'DHL API Fehler: ' . $response->get_error_message(), $log_args );
                 $notice = sprintf( __( 'Fehler beim Abrufen der DHL API: %s', 'kb' ), $response->get_error_message() );
                 continue;
             }
 
             $body = wp_remote_retrieve_body( $response );
-            $xml  = simplexml_load_string( $body );
+
+            if ( $debug ) {
+                $logger->debug( 'DHL API response: ' . $body, $log_args );
+            }
+
+            $xml = simplexml_load_string( $body );
 
             if ( ! $xml ) {
                 $logger->error( 'Ungültige Antwort von der DHL API', $log_args );
