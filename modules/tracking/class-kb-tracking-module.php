@@ -182,19 +182,42 @@ class KB_Tracking_Module {
      * Cron Callback.
      */
     public function run_tracking() {
-        $ids = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
-        if ( empty( $ids ) ) {
-            delete_option( self::NOTICE_OPTION );
-            return;
-        }
-
         $api_key    = get_option( 'kb_tracking_dhl_api_key' );
         $api_secret = get_option( 'kb_tracking_dhl_api_secret' );
         $username   = get_option( 'kb_tracking_dhl_username' );
         $password   = get_option( 'kb_tracking_dhl_password' );
         if ( ! $api_key || ! $api_secret || ! $username || ! $password ) {
             update_option( self::NOTICE_OPTION, __( 'Sendungsverfolgung konnte nicht aktualisiert werden. Bitte Zugangsdaten hinterlegen.', 'kb' ) );
-            return;
+            return false;
+        }
+
+        // Füge alle Shipments mit Status "shipped" zur Tracking-Liste hinzu.
+        $posts = get_posts(
+            array(
+                'post_type'      => 'shiptastic_shipment',
+                'post_status'    => 'shipped',
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+            )
+        );
+
+        foreach ( $posts as $shipment_id ) {
+            $tracking_id = get_post_meta( $shipment_id, '_tracking_id', true );
+            if ( ! $tracking_id ) {
+                continue;
+            }
+            $this->maybe_create_tracking(
+                (object) array(
+                    'id'          => $tracking_id,
+                    'tracking_id' => $tracking_id,
+                )
+            );
+        }
+
+        $ids = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
+        if ( empty( $ids ) ) {
+            delete_option( self::NOTICE_OPTION );
+            return true;
         }
 
         $logger   = wc_get_logger();
@@ -283,6 +306,7 @@ class KB_Tracking_Module {
         } else {
             delete_option( self::NOTICE_OPTION );
         }
+        return true;
     }
 
     /**
@@ -304,8 +328,11 @@ class KB_Tracking_Module {
         echo '<div class="wrap"><h1>' . esc_html__( 'Sendungsverfolgung', 'kb' ) . '</h1>';
 
         if ( isset( $_POST['kb_tracking_refresh'] ) && check_admin_referer( 'kb_tracking_refresh', '_kb_tracking_nonce' ) ) {
-            $this->run_tracking();
-            echo '<div class="notice notice-success"><p>' . esc_html__( 'Sendungsverfolgung aktualisiert.', 'kb' ) . '</p></div>';
+            if ( $this->run_tracking() ) {
+                echo '<div class="notice notice-success"><p>' . esc_html__( 'Sendungsverfolgung aktualisiert.', 'kb' ) . '</p></div>';
+            } else {
+                $this->show_admin_notice();
+            }
         }
 
         $ids   = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
