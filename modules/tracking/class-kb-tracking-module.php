@@ -103,25 +103,19 @@ class KB_Tracking_Module {
      */
     public static function create_tracking_for_existing_shipments() {
         // Suche nach Shipments mit dem Status "ready-for-shipping".
-        $posts = get_posts(
+        $shipments = function_exists( 'wc_stc_get_shipments' ) ? wc_stc_get_shipments(
             array(
-                'post_type'      => 'shiptastic_shipment',
-                'post_status'    => 'ready-for-shipping',
-                'posts_per_page' => -1,
-                'fields'         => 'ids',
+                'status' => array( 'ready-for-shipping' ),
+                'limit'  => -1,
             )
-        );
+        ) : array();
 
-        if ( empty( $posts ) ) {
+        if ( empty( $shipments ) ) {
             return;
         }
 
         $module = new self();
-        foreach ( $posts as $shipment_id ) {
-            $shipment = (object) array(
-                'id'          => $shipment_id,
-                'tracking_id' => get_post_meta( $shipment_id, '_tracking_id', true ),
-            );
+        foreach ( $shipments as $shipment ) {
             $module->maybe_create_tracking( $shipment );
         }
     }
@@ -164,17 +158,23 @@ class KB_Tracking_Module {
     /**
      * Erstellt KB_Tracking Objekte bei Shiptastic Events.
      *
-     * @param object $shipment Shiptastic Shipment Objekt.
+     * @param mixed $shipment Shiptastic Shipment Objekt oder ID.
      */
     public function maybe_create_tracking( $shipment ) {
-        if ( empty( $shipment ) || empty( $shipment->id ) ) {
+        if ( function_exists( 'wc_stc_get_shipment' ) ) {
+            $shipment = wc_stc_get_shipment( $shipment );
+        }
+
+        if ( ! $shipment ) {
             return;
         }
-        $tracking = new KB_Tracking( $shipment->id );
+
+        $tracking = new KB_Tracking( $shipment->get_id() );
         if ( $tracking->get_tracking_id() ) {
             return;
         }
-        $tracking->set_tracking_id( isset( $shipment->tracking_id ) ? $shipment->tracking_id : '' );
+
+        $tracking->set_tracking_id( $shipment->get_tracking_id() );
         $tracking->save();
     }
 
@@ -199,26 +199,18 @@ class KB_Tracking_Module {
         }
 
         // Füge alle Shipments mit Status "shipped" zur Tracking-Liste hinzu.
-        $posts = get_posts(
+        $shipments = function_exists( 'wc_stc_get_shipments' ) ? wc_stc_get_shipments(
             array(
-                'post_type'      => 'shiptastic_shipment',
-                'post_status'    => 'shipped',
-                'posts_per_page' => -1,
-                'fields'         => 'ids',
+                'status' => array( 'shipped' ),
+                'limit'  => -1,
             )
-        );
+        ) : array();
 
-        foreach ( $posts as $shipment_id ) {
-            $tracking_id = get_post_meta( $shipment_id, '_tracking_id', true );
-            if ( ! $tracking_id ) {
+        foreach ( $shipments as $shipment ) {
+            if ( ! $shipment->get_tracking_id() ) {
                 continue;
             }
-            $this->maybe_create_tracking(
-                (object) array(
-                    'id'          => $tracking_id,
-                    'tracking_id' => $tracking_id,
-                )
-            );
+            $this->maybe_create_tracking( $shipment );
         }
 
         $ids = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
