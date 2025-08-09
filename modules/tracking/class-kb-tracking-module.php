@@ -25,6 +25,7 @@ class KB_Tracking_Module {
         add_action( 'shiptastic_shipment_status_ready-for-shipping', array( $this, 'maybe_create_tracking' ) );
 
         add_action( 'admin_notices', array( $this, 'show_admin_notice' ) );
+        add_action( 'admin_init', array( $this, 'maybe_dismiss_notice' ) );
     }
 
     /**
@@ -102,10 +103,10 @@ class KB_Tracking_Module {
      * Erstellt Tracking-Objekte für vorhandene Shipments.
      */
     public static function create_tracking_for_existing_shipments() {
-        // Suche nach Shipments mit dem Status "ready-for-shipping".
+        // Suche nach Shipments mit dem Status "shipped".
         $shipments = function_exists( 'wc_stc_get_shipments' ) ? wc_stc_get_shipments(
             array(
-                'status' => array( 'ready-for-shipping' ),
+                'status' => array( 'shipped' ),
                 'limit'  => -1,
             )
         ) : array();
@@ -170,11 +171,14 @@ class KB_Tracking_Module {
         }
 
         $tracking = new KB_Tracking( $shipment->get_id() );
-        if ( $tracking->get_tracking_id() ) {
-            return;
+
+        // Nur Shipments mit Status "shipped" sollen verfolgt werden.
+        $tracking->set_do_tracking( 'shipped' === $shipment->get_status() );
+
+        if ( ! $tracking->get_tracking_id() ) {
+            $tracking->set_tracking_id( $shipment->get_tracking_id() );
         }
 
-        $tracking->set_tracking_id( $shipment->get_tracking_id() );
         $tracking->save();
     }
 
@@ -196,6 +200,19 @@ class KB_Tracking_Module {
             $logger->warning( 'Tracking update aborted: missing credentials', $log_args );
             update_option( self::NOTICE_OPTION, __( 'Sendungsverfolgung konnte nicht aktualisiert werden. Bitte Zugangsdaten hinterlegen.', 'kb' ) );
             return false;
+        }
+
+        // Deaktiviere Tracking für Shipments, die noch nicht versendet wurden.
+        $pending_shipments = function_exists( 'wc_stc_get_shipments' ) ? wc_stc_get_shipments(
+            array(
+                'status' => array( 'ready-for-shipping' ),
+                'limit'  => -1,
+            )
+        ) : array();
+        foreach ( $pending_shipments as $pending ) {
+            $tracking = new KB_Tracking( $pending->get_id() );
+            $tracking->set_do_tracking( false );
+            $tracking->save();
         }
 
         // Füge alle Shipments mit Status "shipped" zur Tracking-Liste hinzu.
@@ -338,8 +355,20 @@ class KB_Tracking_Module {
         if ( ! $notice ) {
             return;
         }
-        $url = admin_url( 'admin.php?page=wc-settings&tab=kb_adapter' );
-        echo '<div class="notice notice-error"><p>' . esc_html( $notice ) . ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'Einstellungen', 'kb' ) . '</a></p></div>';
+        $url         = admin_url( 'admin.php?page=wc-settings&tab=kb_adapter' );
+        $dismiss_url = wp_nonce_url( add_query_arg( 'kb_tracking_notice_dismiss', '1' ), 'kb_tracking_notice_dismiss' );
+        echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $notice ) . ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'Einstellungen', 'kb' ) . '</a></p><p><a href="' . esc_url( $dismiss_url ) . '">' . esc_html__( 'Hinweis schließen', 'kb' ) . '</a></p></div>';
+    }
+
+    /**
+     * Entfernt Admin Hinweise, wenn gewünscht.
+     */
+    public function maybe_dismiss_notice() {
+        if ( isset( $_GET['kb_tracking_notice_dismiss'] ) && check_admin_referer( 'kb_tracking_notice_dismiss' ) ) {
+            delete_option( self::NOTICE_OPTION );
+            wp_safe_redirect( remove_query_arg( array( 'kb_tracking_notice_dismiss', '_wpnonce' ) ) );
+            exit;
+        }
     }
 
     /**
