@@ -246,7 +246,7 @@ class KB_Tracking_Module {
         foreach ( $chunks as $chunk ) {
             $piece_codes = implode( ';', array_map( 'sanitize_text_field', $chunk ) );
             $xml         = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?><data appname="' . esc_attr( $user ) . '" language-code="de" password="' . esc_attr( $pass ) . '" piece-code="' . esc_attr( $piece_codes ) . '" request="d-get-signature"/>';
-            $url         = add_query_arg( 'xml', $xml, 'https://api-eu.dhl.com/track/shipments' );
+            $url         = add_query_arg( 'xml', $xml, 'https://api-eu.dhl.com/parcel/de/tracking/v0/shipments' );
 
             if ( $debug ) {
                 $logger->debug( 'DHL API request: ' . $url, $log_args );
