@@ -182,11 +182,18 @@ class KB_Tracking_Module {
      * Cron Callback.
      */
     public function run_tracking() {
+        $logger   = wc_get_logger();
+        $log_args = array( 'source' => 'kb-tracking' );
+        $debug    = 'debug' === get_option( 'kb_tracking_log_level', 'error' );
+
+        $logger->info( 'Tracking update started', $log_args );
+
         $api_key    = get_option( 'kb_tracking_dhl_api_key' );
         $api_secret = get_option( 'kb_tracking_dhl_api_secret' );
         $username   = get_option( 'kb_tracking_dhl_username' );
         $password   = get_option( 'kb_tracking_dhl_password' );
         if ( ! $api_key || ! $api_secret || ! $username || ! $password ) {
+            $logger->warning( 'Tracking update aborted: missing credentials', $log_args );
             update_option( self::NOTICE_OPTION, __( 'Sendungsverfolgung konnte nicht aktualisiert werden. Bitte Zugangsdaten hinterlegen.', 'kb' ) );
             return false;
         }
@@ -216,13 +223,10 @@ class KB_Tracking_Module {
 
         $ids = get_option( KB_Tracking_Data_Store::IDS_OPTION, array() );
         if ( empty( $ids ) ) {
+            $logger->info( 'Tracking update finished: no tracking IDs', $log_args );
             delete_option( self::NOTICE_OPTION );
             return true;
         }
-
-        $logger   = wc_get_logger();
-        $log_args = array( 'source' => 'kb-tracking' );
-        $debug    = 'debug' === get_option( 'kb_tracking_log_level', 'error' );
 
         $notice = '';
         $chunks = array_chunk( $ids, 15 );
@@ -318,6 +322,7 @@ class KB_Tracking_Module {
         } else {
             delete_option( self::NOTICE_OPTION );
         }
+        $logger->info( 'Tracking update finished', $log_args );
         return true;
     }
 
