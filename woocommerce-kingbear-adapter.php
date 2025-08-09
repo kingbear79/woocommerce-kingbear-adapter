@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WooCommerce KingBear Adapter
  * Description: Modulare Erweiterung für WooCommerce zur Versandabwicklung und Sendungsverfolgung über DHL.
- * Version: 0.1.12
+ * Version: 0.1.13
  * Update URI: https://github.com/kingbear79/woocommerce-kingbear-adapter
  * Author: OpenAI
  * License: GPL2
