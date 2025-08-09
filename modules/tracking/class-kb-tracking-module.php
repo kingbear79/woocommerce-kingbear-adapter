@@ -190,9 +190,9 @@ class KB_Tracking_Module {
 
         $api_key    = get_option( 'kb_tracking_dhl_api_key' );
         $api_secret = get_option( 'kb_tracking_dhl_api_secret' );
-        $username   = get_option( 'kb_tracking_dhl_username' );
-        $password   = get_option( 'kb_tracking_dhl_password' );
-        if ( ! $api_key || ! $api_secret || ! $username || ! $password ) {
+        $user       = sanitize_text_field( get_option( 'kb_tracking_dhl_username' ) );
+        $pass       = sanitize_text_field( get_option( 'kb_tracking_dhl_password' ) );
+        if ( ! $api_key || ! $api_secret || ! $user || ! $pass ) {
             $logger->warning( 'Tracking update aborted: missing credentials', $log_args );
             update_option( self::NOTICE_OPTION, __( 'Sendungsverfolgung konnte nicht aktualisiert werden. Bitte Zugangsdaten hinterlegen.', 'kb' ) );
             return false;
@@ -206,8 +206,13 @@ class KB_Tracking_Module {
             )
         ) : array();
 
+        $threshold = strtotime( '-30 days' );
         foreach ( $shipments as $shipment ) {
             if ( ! $shipment->get_tracking_id() ) {
+                continue;
+            }
+            $created = method_exists( $shipment, 'get_date_created' ) ? $shipment->get_date_created() : null;
+            if ( $created instanceof WC_DateTime && $created->getTimestamp() < $threshold ) {
                 continue;
             }
             $this->maybe_create_tracking( $shipment );
@@ -220,17 +225,28 @@ class KB_Tracking_Module {
             return true;
         }
 
+        $trackings = array();
+        foreach ( $ids as $id ) {
+            $tracking     = new KB_Tracking( $id );
+            $tracking_id  = $tracking->get_tracking_id();
+            if ( ! $tracking_id || ! $tracking->get_do_tracking() ) {
+                continue;
+            }
+            $trackings[ $tracking_id ] = $tracking;
+        }
+
+        if ( empty( $trackings ) ) {
+            $logger->info( 'Tracking update finished: no tracking IDs', $log_args );
+            delete_option( self::NOTICE_OPTION );
+            return true;
+        }
+
         $notice = '';
-        $chunks = array_chunk( $ids, 15 );
+        $chunks = array_chunk( array_keys( $trackings ), 15 );
         foreach ( $chunks as $chunk ) {
             $piece_codes = implode( ';', array_map( 'sanitize_text_field', $chunk ) );
-            $url         = add_query_arg(
-                array(
-                    'request'   => 'd-get-piece-detail',
-                    'piececode' => $piece_codes,
-                ),
-                'https://api-eu.dhl.com/track/shipments'
-            );
+            $xml         = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?><data appname="' . esc_attr( $user ) . '" language-code="de" password="' . esc_attr( $pass ) . '" piece-code="' . esc_attr( $piece_codes ) . '" request="d-get-signature"/>';
+            $url         = add_query_arg( 'xml', $xml, 'https://api-eu.dhl.com/track/shipments' );
 
             if ( $debug ) {
                 $logger->debug( 'DHL API request: ' . $url, $log_args );
@@ -240,11 +256,10 @@ class KB_Tracking_Module {
                 $url,
                 array(
                     'headers' => array(
-                        'dhl-api-key'    => $api_key,
-                        'dhl-api-secret' => $api_secret,
+                        'dhl-api-key' => $api_key,
+                        'Authorization' => 'Basic ' . base64_encode( $api_key . ':' . $api_secret ),
                     ),
                     'timeout' => 30,
-                    'auth'    => array( $username, $password ),
                 )
             );
 
@@ -286,10 +301,7 @@ class KB_Tracking_Module {
                     continue;
                 }
                 $piece    = $shipment['@attributes'];
-                $tracking = new KB_Tracking( $piece['piece-code'] );
-                if ( ! $tracking->get_do_tracking() ) {
-                    continue;
-                }
+                $tracking = isset( $trackings[ $piece['piece-code'] ] ) ? $trackings[ $piece['piece-code'] ] : new KB_Tracking();
                 $tracking->set_tracking_id( $piece['piece-code'] );
                 $tracking->set_status( $piece['status'] ?? '' );
                 $tracking->set_status_timestamp( $piece['status-timestamp'] ?? '' );
@@ -337,6 +349,7 @@ class KB_Tracking_Module {
         echo '<div class="wrap"><h1>' . esc_html__( 'Sendungsverfolgung', 'kb' ) . '</h1>';
 
         if ( isset( $_POST['kb_tracking_refresh'] ) && check_admin_referer( 'kb_tracking_refresh', '_kb_tracking_nonce' ) ) {
+            self::delete_all_tracking();
             if ( $this->run_tracking() ) {
                 echo '<div class="notice notice-success"><p>' . esc_html__( 'Sendungsverfolgung aktualisiert.', 'kb' ) . '</p></div>';
             } else {
